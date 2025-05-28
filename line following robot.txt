@@ -1,0 +1,131 @@
+#define ENA 11
+#define IN1 10
+#define IN2 9
+#define ENB 6
+#define IN3 8
+#define IN4 7
+
+const int SENSOR_RIGHT_FAR = 5;
+const int SENSOR_RIGHT = 4;
+const int SENSOR_CENTER = 3;
+const int SENSOR_LEFT = 2;
+const int SENSOR_LEFT_FAR = 12;
+
+// ثوابت PID
+float Kp = 22.0; // معدلة للمنحنيات
+float Ki = 0.0;  // الإبقاء على Ki صفر
+float Kd = 15.0; // زيادة لتحسين الاستجابة في المنحنيات
+
+int error = 0;
+int previousError = 0;
+long integral = 0;
+int derivative = 0;
+float PIDvalue = 0;
+
+const int BASE_SPEED = 90; // قيمة جيدة
+const int MAX_SPEED = 190;  // قيمة جيدة
+
+void setup() {
+  pinMode(SENSOR_LEFT_FAR, INPUT);
+  pinMode(SENSOR_LEFT, INPUT);
+  pinMode(SENSOR_CENTER, INPUT);
+  pinMode(SENSOR_RIGHT, INPUT);
+  pinMode(SENSOR_RIGHT_FAR, INPUT);
+
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  int sLeftFar = digitalRead(SENSOR_LEFT_FAR);
+  int sLeft = digitalRead(SENSOR_LEFT);
+  int sCenter = digitalRead(SENSOR_CENTER);
+  int sRight = digitalRead(SENSOR_RIGHT);
+  int sRightFar = digitalRead(SENSOR_RIGHT_FAR);
+
+  bool lineIsVisible = (sLeftFar == HIGH || sLeft == HIGH || sCenter == HIGH || sRight == HIGH || sRightFar == HIGH);
+
+  // منطق حساب الخطأ
+  if (sCenter == HIGH) {
+    error = 0;
+  } else if (sRight == HIGH) {
+    error = 3;
+  } else if (sLeft == HIGH) {
+    error = -3;
+  } else if (sRightFar == HIGH) {
+    error = 6; // زيادة للمنحنيات الحادة
+  } else if (sLeftFar == HIGH) {
+    error = -6; // زيادة للمنحنيات الحادة
+  } else {
+    // حالة فقدان الخط
+    if (previousError > 0) {
+      error = 15; // استمر يمين بحدة
+    } else if (previousError < 0) {
+      error = -15; // استمر يسار بحدة
+    } else {
+        error=10;    }
+  }
+
+  integral += error;
+  integral = constrain(integral, -250, 250);
+  derivative = error - previousError;
+  PIDvalue = (Kp * error) + (Ki * integral) + (Kd * derivative);
+
+  previousError = error;
+
+  // تقليل السرعة في المنحنيات
+  int dynamicBaseSpeed = BASE_SPEED;
+  if (sRightFar == HIGH || sLeftFar == HIGH) {
+    dynamicBaseSpeed = BASE_SPEED * 0.7; // تقليل السرعة في المنحنيات
+  }
+
+  int leftMotorSpeed = constrain(dynamicBaseSpeed - PIDvalue, 0, MAX_SPEED);
+  int rightMotorSpeed = constrain(dynamicBaseSpeed + PIDvalue, 0, MAX_SPEED);
+
+  motor_drive(leftMotorSpeed, rightMotorSpeed);
+
+  Serial.print("Error: "); Serial.print(error);
+  Serial.print(" PID Value: "); Serial.print(PIDvalue);
+  Serial.print(" Speeds (L/R): "); Serial.print(leftMotorSpeed);
+  Serial.print(" / "); Serial.print(rightMotorSpeed);
+  Serial.print(" Sensors (LF/L/C/R/RF): ");
+  Serial.print(sLeftFar); Serial.print("/");
+  Serial.print(sLeft); Serial.print("/");
+  Serial.print(sCenter); Serial.print("/");
+  Serial.print(sRight); Serial.print("/");
+  Serial.print(sRightFar);
+  Serial.print(" Line Visible: "); Serial.println(lineIsVisible);
+}
+
+void motor_drive(int leftSpeed, int rightSpeed) {
+  if (leftSpeed >= 0) {
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+  } else {
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
+  }
+  analogWrite(ENA, abs(leftSpeed));
+
+  if (rightSpeed >= 0) {
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+  } else {
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, HIGH);
+  }
+  analogWrite(ENB, abs(rightSpeed));
+}
