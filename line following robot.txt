@@ -11,10 +11,9 @@ const int SENSOR_CENTER = 3;
 const int SENSOR_LEFT = 2;
 const int SENSOR_LEFT_FAR = 12;
 
-// ثوابت PID
-float Kp = 22.0; // معدلة للمنحنيات
-float Ki = 0.0;  // الإبقاء على Ki صفر
-float Kd = 15.0; // زيادة لتحسين الاستجابة في المنحنيات
+float Kp = 22.0;
+float Ki = 0.0;
+float Kd = 15.0;
 
 int error = 0;
 int previousError = 0;
